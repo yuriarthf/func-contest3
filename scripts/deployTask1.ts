@@ -7,7 +7,7 @@ export async function run(provider: NetworkProvider) {
 
     await provider.deploy(task1, toNano('0.05'));
 
-    const openedContract = provider.open(task1);
+    //const openedContract = provider.open(task1);
 
     // run methods on `openedContract`
 }

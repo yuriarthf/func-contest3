@@ -1,0 +1,2 @@
+branch_node#_ branch:uint16 { branch > 0 } = Node;
+root_node#_ branch:uint16 { branch = 0 } dest_addr:bits256 = Node;

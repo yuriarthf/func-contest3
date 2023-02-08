@@ -1,4 +1,14 @@
-import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, SendMode } from 'ton-core';
+import {
+    Address,
+    beginCell,
+    Cell,
+    Contract,
+    contractAddress,
+    ContractProvider,
+    Sender,
+    SendMode, Slice,
+    TupleBuilder,
+} from 'ton-core';
 
 export type Task1Config = {};
 
@@ -25,5 +35,13 @@ export class Task1 implements Contract {
             sendMode: SendMode.PAY_GAS_SEPARATLY,
             body: beginCell().endCell(),
         });
+    }
+
+    async decomposite(provider: ContractProvider, bigCell: Cell, destinationAddress: Slice) {
+        const tupleArgs = new TupleBuilder();
+        tupleArgs.writeCell(bigCell);
+        tupleArgs.writeSlice(destinationAddress);
+        const result = await provider.get("decomposite", tupleArgs.build());
+        return result.stack.readTuple();
     }
 }

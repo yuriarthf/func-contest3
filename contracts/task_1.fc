@@ -15,61 +15,128 @@ global cell node_hash_to_branch;
 global int node_branch;
 global tuple decomposed_big_cell;
 
-() recursively_decompose(cell big_cell) {
-  builder decomposed_cell = begin_cell().store_uint(index, 16);
-  int node_hash = cell_hash(big_cell);
-  slice big_cell_slice = big_cell.begin_parse();
-  var (node_index, f) = node_hash_to_branch.udict_get?(256, node_hash);
+() recursively_decompose (cell big_cell) {
+	builder decomposed_cell = begin_cell().store_uint(index, 16);
+	int node_hash = cell_hash(big_cell);
+	slice big_cell_slice = big_cell.begin_parse();
+	var (node_index, f) = node_hash_to_branch.udict_get?(256, node_hash);
+	if (f) {
+		return ();
+	}
 
-  if (f) {
-    return ();
-  }
-  node_branch_slice = begin_cell()
-      .store_uint(node_branch, 16)
-    .end_cell()
-    .begin_parse();
-  node_hash_to_branch~udict_set(256, node_hash, node_branch_slice);
+	node_branch_slice = begin_cell()
+			.store_uint(node_branch, 16)
+			.end_cell()
+			.begin_parse();
+	node_hash_to_branch~udict_set(256, node_hash, node_branch_slice);
 
-  int curr_node_branch = node_branch;
-  node_branch = 4 * node_branch + 1;
-  while (~ big_cell_slice.slice_refs_empty?()) {
-    recursively_decompose(big_cell~load_ref());
-    node_branch += 1;
-  }
-  node_branch = curr_node_branch;
+	int curr_node_branch = node_branch;
+	node_branch = 4 * node_branch + 1;
+	while (~ big_cell_slice.slice_refs_empty?()) {
+		recursively_decompose(big_cell~load_ref());
+		node_branch += 1;
+	}
+	node_branch = curr_node_branch;
 
-  decomposed_big_cell~tpush(begin_cell()
-      .store_slice(node_branch_slice)
-      .store_slice(big_cell_slice)
-    .end_cell()
-  );
+	decomposed_big_cell~tpush(begin_cell()
+			.store_slice(node_branch_slice)
+			.store_slice(big_cell_slice)
+			.end_cell()
+	);
 
-  return ();
+	return ();
+}
+
+slice load_cache () inline {
+	return get_data().begin_parse();
+}
+
+() save_cache (int last_branch, slice cache) impure inline {
+	set_data(begin_cell().store_uint(last_branch).store_slice(cache).end_cell());
+}
+
+() empty_cache () impure inline {
+	set_data(begin_cell().end_cell());
+}
+
+() send_msg (slice destination_address, cell big_cell) impure inline {
+	cell full_msg = begin_cell()
+			.store_uint(0x18, 6)
+			.store_slice(destination_address)
+			.store_coins(0)
+			.store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+			.store_ref(big_cell)
+			.end_cell();
+	send_raw_message(full_msg, 64);
+}
+
+() assemble_msg (slice node) impure inline {
+	var cache = load_cache;
+	int node_branch = node~load_uint(16);
+
+	if (cache.slice_empty?()) {
+		if (node_branch == 0) {
+			var dest_addr = node~load_msg_addr();
+			send_msg(dest_addr, begin_cell().store_slice(node).end_cell());
+			return ();
+		}
+		save_cache(node_branch, node);
+	} else {
+		if (node_branch == 0) {
+			cache~skip_bits(16);
+			var dest_addr = node~load_msg_addr();
+			slice big_slice = begin_cell().store_slice(node);
+			while (~ cache.slice_refs_empty?()) {
+				big_slice.store_ref(cache~load_ref());
+			}
+			send_msg(dest_addr, big_slice.end_cell());
+			empty_cache();
+			return ();
+		}
+		int last_branch = cache~load_uint(16);
+		if (last_branch + 1 == node_branch) {
+			var new_cache = begin_cell()
+				.store_slice(cache)
+				.store_ref(node)
+			.enc_cell();
+			save_cache(node_branch, new_cache.begin_parse());
+		} else {
+			var new_cache = begin_cell()
+				.store_ref(begin_cell()
+					.store_slice(node)
+					.store_slice(cache)
+				.end_cell())
+			.enc_cell();
+			save_cache(node_branch, new_cache.begin_parse());
+		}
+	}
 }
 
 ;; testable
 () recv_internal (slice body) {
+	assemble_msg(body);
 }
 
 ;; testable
 tuple decomposite (cell big_cell, slice destination_address) method_id {
-  ;; initialize global variables
-  cell node_hash_to_index = new_dict();
-  int node_branch = 0;
-  tuple decomposed_big_cell = empty_tuple();
+	;; initialize global variables
+	cell node_hash_to_index = new_dict();
+	int node_branch = 0;
+	tuple decomposed_big_cell = empty_tuple();
 
-  int curr_node_branch = node_branch;
-  while (~ big_cell_slice.slice_refs_empty?()) {
-    node_branch += 1;
-    recursively_decompose(big_cell~load_ref());
-  }
-  node_branch = curr_node_branch;
+	int curr_node_branch = node_branch;
+	while (~ big_cell_slice.slice_refs_empty?()) {
+		node_branch += 1;
+		recursively_decompose(big_cell~load_ref());
+	}
+	node_branch = curr_node_branch;
 
-  decomposed_big_cell~tpush(begin_cell()
-      .store_uint(node_branch, 16)
-      .store_slice(big_cell_slice)
-    .end_cell()
-  );
+	decomposed_big_cell~tpush(begin_cell()
+			.store_uint(node_branch, 16)
+			.store_slice(destination_address)
+			.store_slice(big_cell_slice)
+			.end_cell()
+	);
 
-  return decomposed_big_cell;
+	return decomposed_big_cell;
 }
