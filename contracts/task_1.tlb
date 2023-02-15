@@ -1,2 +1,2 @@
-branch_node#_ branch:uint16 { branch > 0 } = Node;
-root_node#_ branch:uint16 { branch = 0 } dest_addr:bits256 = Node;
+serialized_node$1 num_refs:(uint 3) ref_indexes:(uint8 * num_refs) data:bits = SerializedNodeMsg;
+send_msg_node$10 dest_addr:(bits256) = SerializedNodeMsg;

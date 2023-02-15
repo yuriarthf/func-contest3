@@ -166,7 +166,7 @@ tuple decomposite (cell big_cell, slice destination_address) method_id {
   var (next_index, cell_slice, f) = ordered_cells~udict_get_nexteq?(8, 0);
   while (f) {
     serialized_big_cell~tpush(begin_cell()
-        .store_uint(0, 32)
+        .store_uint(op::cache_fragment, 32)
         .store_slice(get_ref_descriptor(cell_slice))
         .store_slice(cell_slice.preload_bits(cell_slice.slice_bits()))
       .end_cell()
@@ -174,7 +174,7 @@ tuple decomposite (cell big_cell, slice destination_address) method_id {
   }
 
   serialized_big_cell~tpush(begin_cell()
-      .store_uint(1, 32)
+      .store_uint(op::send_msg, 32)
       .store_slice(destination_address)
     .end_cell()
   );
