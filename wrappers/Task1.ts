@@ -43,6 +43,14 @@ export class Task1 implements Contract {
         });
     }
 
+    async sendInternal(provider: ContractProvider, via: Sender, value: bigint, body: Cell) {
+        await provider.internal(via, {
+            value,
+            sendMode: SendMode.PAY_GAS_SEPARATLY,
+            body
+        });
+    }
+
     async getDecomposite(provider: ContractProvider, bigCell: Cell, destinationAddress: Slice) {
         const tupleArgs = new TupleBuilder();
         tupleArgs.writeCell(bigCell);

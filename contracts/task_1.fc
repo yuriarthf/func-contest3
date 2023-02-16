@@ -41,7 +41,7 @@ global cell assembled_message;
 
 cell assemble_tree (cell cache, int idx) inline {
   (slice serialized_node, _) = cache.udict_get?(8, idx);
-  int number_of_slices = serialized_node~load_uint(3);
+  int number_of_slices = serialized_node~load_uint(8);
   builder node = begin_cell();
   while (number_of_slices > 0) {
     node = node.store_ref(assemble_tree(cache, serialized_node~load_uint(8)));
@@ -58,7 +58,7 @@ cell assemble_msg () inline {
   return assemble_tree(cache, 0);
 }
 
-() update_cache (slice append) {
+() update_cache (slice append) impure {
   var (next_idx, cache_dict) = load_cache();
   cache_dict~udict_set(8, next_idx, append);
   next_idx += 1;
@@ -81,7 +81,7 @@ cell assemble_msg () inline {
 
   if (op == op::send_msg) {
     cell root = assemble_msg();
-    send_msg(body~load_bits(256), root);
+    send_msg(body~load_msg_addr(), root);
     empty_cache();
     return ();
   }

@@ -51,6 +51,14 @@ describe('Task1', () => {
             .endCell())
         .endCell());
 
-        console.log(await task1.getDecomposite(bigCell, destAddr));
+        // decompose big cell
+        const decomposedBigCell = await task1.getDecomposite(bigCell, destAddr);
+
+        let deployResult;
+        while (decomposedBigCell.remaining > 0) {
+            const serializedNode = decomposedBigCell.readCell();
+            deployResult = await task1.sendInternal(deployer.getSender(), toNano('0.005'), serializedNode);
+        }
+        console.log(deployResult);
     });
 });
