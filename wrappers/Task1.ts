@@ -13,7 +13,13 @@ import {
 export type Task1Config = {};
 
 export function task1ConfigToCell(/** config: Task1Config **/): Cell {
-    return beginCell().endCell();
+    return beginCell()
+        .storeUint(0, 8)
+        .storeRef(
+            beginCell()
+            .endCell()
+        )
+    .endCell();
 }
 
 export class Task1 implements Contract {

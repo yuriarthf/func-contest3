@@ -18,9 +18,9 @@ global cell assembled_message;
 
 () empty_cache () impure inline {
   set_data(begin_cell()
-      .store_uint(0, 8)
-      .store_ref(begin_cell().end_cell())
-    .end_cell());
+    .store_uint(0, 8)
+    .store_ref(begin_cell().end_cell())
+  .end_cell());
 }
 
 (int, cell) load_cache () inline {
@@ -39,14 +39,14 @@ global cell assembled_message;
   send_raw_message(full_msg, 64);
 }
 
-cell assemble_tree (slice cache, int idx) inline {
-  (slice serialized_node, _) = cache~udict_get?(8, idx);
+cell assemble_tree (cell cache, int idx) inline {
+  (slice serialized_node, _) = cache.udict_get?(8, idx);
   int number_of_slices = serialized_node~load_uint(3);
   builder node = begin_cell();
-  while (number_of_slice > 0) {
-    node~store_ref(assemble_tree(cache, serialized_node~load_uint(8)));
+  while (number_of_slices > 0) {
+    node = node.store_ref(assemble_tree(cache, serialized_node~load_uint(8)));
   }
-  node~store_slice(node~load_bits(node.slice_bits()));
+  node = node.store_slice(serialized_node~load_bits(serialized_node.slice_bits()));
   return node.end_cell();
 }
 
@@ -54,7 +54,7 @@ cell assemble_msg () inline {
   ;; initialize global variables
   cell assembled_message = null();
 
-  (_, slice cache) = load_cache();
+  (_, cell cache) = load_cache();
   return assemble_tree(cache, 0);
 }
 
@@ -80,8 +80,7 @@ cell assemble_msg () inline {
   }
 
   if (op == op::send_msg) {
-    (_, slice cache) = load_cache();
-    cell root = assemble_msg(body);
+    cell root = assemble_msg();
     send_msg(body~load_bits(256), root);
     empty_cache();
     return ();
@@ -95,21 +94,22 @@ global int ordered_cells_length;
 global cell ordered_cells;
 
 () move_elem_to_end(int index) inline {
-  slice elem_to_move = ordered_cells.udict_get?(8, index);
+  (slice elem_to_move, int f) = ordered_cells.udict_get?(8, index);
+  throw_unless(101, f);
   var (next_index, elem, f) = ordered_cells.udict_get_next?(8, index);
   do {
     ordered_cells~udict_set(8, index, elem);
     index = next_index;
     (next_index, elem, f) = ordered_cells.udict_get_next?(8, index);
   } until (~ f);
-  ordered_cells~udict_set(8, elem_to_move);
+  ordered_cells~udict_set(8, index, elem_to_move);
 }
 
 () order_cells_and_remove_duplicates (cell big_cell) {
   int big_cell_hash = cell_hash(big_cell);
   var (index, f) = cell_hash_to_index.udict_get?(256, big_cell_hash);
   if (f) {
-    int prev_index = index.begin_parse().preload_uint(8);
+    int prev_index = index.preload_uint(8);
     move_elem_to_end(prev_index);
     cell_hash_to_index~udict_set(256,
       big_cell_hash,
@@ -143,11 +143,8 @@ slice get_ref_descriptor(slice cell_slice) inline {
           .store_uint(number_of_slices, 3);
   int index = 0;
   while(index < number_of_slices) {
-    descriptor~store_uint(
-      cell_hash_to_index(
-        cell_hash(cell_slice~load_ref())
-      ), 8
-    );
+    (slice cell_index, _) = cell_hash_to_index.udict_get?(256, cell_hash(cell_slice~load_ref()));
+    descriptor = descriptor.store_uint(cell_index~load_uint(8), 8);
   }
   return descriptor.end_cell().begin_parse();
 }
@@ -157,13 +154,13 @@ tuple decomposite (cell big_cell, slice destination_address) method_id {
   ;; initialize global variables
   cell cell_hash_to_index = new_dict();
   int ordered_cells_length = 0;
-  tuple ordered_cells = new_dict();
+  cell ordered_cells = new_dict();
 
   ;; order cells and remove duplicated
   order_cells_and_remove_duplicates(big_cell);
 
   tuple serialized_big_cell = empty_tuple();
-  var (next_index, cell_slice, f) = ordered_cells~udict_get_nexteq?(8, 0);
+  var (next_index, cell_slice, f) = ordered_cells.udict_get_nexteq?(8, 0);
   while (f) {
     serialized_big_cell~tpush(begin_cell()
         .store_uint(op::cache_fragment, 32)
