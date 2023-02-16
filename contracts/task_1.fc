@@ -93,7 +93,7 @@ global cell cell_hash_to_index;
 global int ordered_cells_length;
 global cell ordered_cells;
 
-() move_elem_to_end(int index) inline {
+() move_elem_to_end(int index) impure inline {
   (slice elem_to_move, int f) = ordered_cells.udict_get?(8, index);
   throw_unless(101, f);
   var (next_index, elem, f) = ordered_cells.udict_get_next?(8, index);
@@ -105,7 +105,7 @@ global cell ordered_cells;
   ordered_cells~udict_set(8, index, elem_to_move);
 }
 
-() order_cells_and_remove_duplicates (cell big_cell) {
+() order_cells_and_remove_duplicates (cell big_cell) impure {
   int big_cell_hash = cell_hash(big_cell);
   var (index, f) = cell_hash_to_index.udict_get?(256, big_cell_hash);
   if (f) {
@@ -140,11 +140,12 @@ global cell ordered_cells;
 slice get_ref_descriptor(slice cell_slice) inline {
   int number_of_slices = cell_slice.slice_refs();
   builder descriptor = begin_cell()
-          .store_uint(number_of_slices, 3);
+          .store_uint(number_of_slices, 8);
   int index = 0;
   while(index < number_of_slices) {
     (slice cell_index, _) = cell_hash_to_index.udict_get?(256, cell_hash(cell_slice~load_ref()));
     descriptor = descriptor.store_uint(cell_index~load_uint(8), 8);
+    number_of_slices -= 1;
   }
   return descriptor.end_cell().begin_parse();
 }
@@ -160,7 +161,8 @@ tuple decomposite (cell big_cell, slice destination_address) method_id {
   order_cells_and_remove_duplicates(big_cell);
 
   tuple serialized_big_cell = empty_tuple();
-  var (next_index, cell_slice, f) = ordered_cells.udict_get_nexteq?(8, 0);
+  int idx = 0;
+  var (cell_slice, f) = ordered_cells.udict_get?(8, idx);
   while (f) {
     serialized_big_cell~tpush(begin_cell()
         .store_uint(op::cache_fragment, 32)
@@ -168,6 +170,8 @@ tuple decomposite (cell big_cell, slice destination_address) method_id {
         .store_slice(cell_slice.preload_bits(cell_slice.slice_bits()))
       .end_cell()
     );
+    idx += 1;
+    (cell_slice, f) = ordered_cells.udict_get?(8, idx);
   }
 
   serialized_big_cell~tpush(begin_cell()

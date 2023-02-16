@@ -43,7 +43,7 @@ export class Task1 implements Contract {
         });
     }
 
-    async decomposite(provider: ContractProvider, bigCell: Cell, destinationAddress: Slice) {
+    async getDecomposite(provider: ContractProvider, bigCell: Cell, destinationAddress: Slice) {
         const tupleArgs = new TupleBuilder();
         tupleArgs.writeCell(bigCell);
         tupleArgs.writeSlice(destinationAddress);
