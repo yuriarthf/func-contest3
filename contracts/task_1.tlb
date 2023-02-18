@@ -1,2 +1,2 @@
-serialized_node$01 num_refs:uint8 ref_indexes:(uint8 * num_refs) data:bits = SerializedNodeMsg;
-send_msg_node$10 dest_addr:(bits256) = SerializedNodeMsg;
+serialized_node#1eb0a5b4 num_refs:uint8 ref_indexes:(uint8 * num_refs) data:bits = SerializedNodeMsg;
+send_msg_node#ba47ec87 dest_addr:(bits256) = SerializedNodeMsg;
