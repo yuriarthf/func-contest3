@@ -1,0 +1,77 @@
+{-
+  Contract receives internal message with text comment (https://ton.org/docs/develop/smart-contracts/guidelines/internal-messages) which contains arithmetic expression containing integer numbers in decimal representation and operations `(+-*/)`.
+  All values (including intermediate) fit 256 bit. Contract should respond (coins = 0, mode = 64) with correct answer encoded as text comment back.
+  It is guaranteed that all tests contain a valid algebraic equations.
+  Division result should be rounded down. It is guaranteed that tests do not contain division by zero.
+-}
+
+#include "imports/stdlib.fc";
+
+const ASCII_OFFSET = 48;
+
+builder itoa (int num) inline {
+  builder ascii_repr = begin_cell();
+  while (num != 0) {
+    reversed_tuple~tpush(num % 10);
+    ascii_repr = begin_cell().store_uint(num % 10 + ASCII_OFFSET, 8).store_builder(ascii_repr);
+    num /= 10;
+  }
+  return ascii_repr;
+}
+
+int atoi (slice int_str) inline {
+  int num = 0;
+  while (int_str.slice_bits() > 0) {
+    num = num * 10 + int_str~load_uint(8) - ASCII_OFFSET;
+  }
+  return num;
+}
+
+int get_result (slice eq_str) inline {
+  int result = 0;
+  while (eq_str.slice_bits() > 0) {
+    int num = atoi(eq_str~load_uint(8));
+    int op = eq_str~load_uint(8);
+    if (op == 42) {
+      num *= atoi(eq_str~load_uint(8));
+    }
+    if (op == 43) {
+      num += atoi(eq_str~load_uint(8));
+    }
+    if (op == 45) {
+      num -= atoi(eq_str~load_uint(8));
+    }
+    if (op == 47) {
+      num /= atoi(eq_str~load_uint(8));
+    }
+    result += num;
+  }
+}
+
+() send_msg (slice destination_address, int answer) impure inline {
+  cell full_msg = begin_cell()
+    .store_uint(0x10, 6)
+    .store_slice(destination_address)
+    .store_coins(0)
+    .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+    .store_builder(itoa(answer))
+  .end_cell();
+
+  send_raw_message(full_msg, 64);
+}
+
+;; testable
+() recv_internal (cell message, slice in_msg_body) {
+  ;; Add code here
+
+  ;; parse destination address
+  var cs = message.begin_parse();
+  cs~skip_bits(4);
+  slice destination_address = cs~load_msg_addr(s);
+
+  ;; in_msg_body is a "simple transfer message with comment"
+  in_msg_body~skip_bits(32);
+
+  ;; execute operation and send message
+  send_msg(destination_address, get_result(in_msg_body));
+}
