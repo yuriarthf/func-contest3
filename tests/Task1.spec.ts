@@ -1,5 +1,5 @@
 import { Blockchain, OpenedContract, TreasuryContract } from '@ton-community/sandbox';
-import { Cell, toNano, beginCell } from 'ton-core';
+import { Cell, toNano, beginCell, Slice, Address } from 'ton-core';
 import { Task1 } from '../wrappers/Task1';
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
@@ -33,6 +33,8 @@ describe('Task1', () => {
     it('should decompose big cell', async () => {
         // generate random destination address
         const destAddr = beginCell()
+            .storeUint(4, 3)
+            .storeUint(0, 8)
             .storeUint(randomInt(5000), 256)
         .endCell().beginParse();
 
@@ -54,11 +56,19 @@ describe('Task1', () => {
         // decompose big cell
         const decomposedBigCell = await task1.getDecomposite(bigCell, destAddr);
 
-        let deployResult;
+        // increase blockchain verbosity for contract
+        await blockchain.setVerbosityForAddress(task1.address, 'vm_logs_full');
+
+        let txResult;
         while (decomposedBigCell.remaining > 0) {
             const serializedNode = decomposedBigCell.readCell();
-            deployResult = await task1.sendInternal(deployer.getSender(), toNano('0.005'), serializedNode);
+            txResult = await task1.sendInternal(deployer.getSender(), toNano('0.05'), serializedNode);
         }
-        console.log(deployResult);
+
+        expect(txResult?.transactions).toHaveTransaction({
+            from: task1.address,
+            to: destAddr.loadAddress(),
+            body: bigCell,
+        });
     });
 });

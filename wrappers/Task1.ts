@@ -8,6 +8,7 @@ import {
     Sender,
     SendMode, Slice,
     TupleBuilder,
+    Dictionary,
 } from 'ton-core';
 
 export type Task1Config = {};
@@ -15,10 +16,7 @@ export type Task1Config = {};
 export function task1ConfigToCell(/** config: Task1Config **/): Cell {
     return beginCell()
         .storeUint(0, 8)
-        .storeRef(
-            beginCell()
-            .endCell()
-        )
+        .storeDict(Dictionary.empty())
     .endCell();
 }
 
@@ -49,6 +47,10 @@ export class Task1 implements Contract {
             sendMode: SendMode.PAY_GAS_SEPARATLY,
             body
         });
+    }
+
+    async getData(provider: ContractProvider) {
+        return Cell.fromBoc(((await provider.getState()).state as { data: Buffer }).data);
     }
 
     async getDecomposite(provider: ContractProvider, bigCell: Cell, destinationAddress: Slice) {

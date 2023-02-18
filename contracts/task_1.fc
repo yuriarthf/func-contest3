@@ -14,26 +14,24 @@
 const op::cache_fragment = 1;
 const op::send_msg = 2;
 
-global cell assembled_message;
-
 () empty_cache () impure inline {
   set_data(begin_cell()
     .store_uint(0, 8)
-    .store_ref(begin_cell().end_cell())
+    .store_dict(new_dict())
   .end_cell());
 }
 
 (int, cell) load_cache () inline {
   slice cs = get_data().begin_parse();
-  return (cs~load_uint(8), cs~load_ref());
+  return (cs~load_uint(8), cs~load_dict());
 }
 
 () send_msg (slice destination_address, cell big_cell) impure inline {
   cell full_msg = begin_cell()
-      .store_uint(0x18, 6)
+      .store_uint(0x10, 6)
       .store_slice(destination_address)
       .store_coins(0)
-      .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+      .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
       .store_ref(big_cell)
     .end_cell();
   send_raw_message(full_msg, 64);
@@ -41,19 +39,17 @@ global cell assembled_message;
 
 cell assemble_tree (cell cache, int idx) inline {
   (slice serialized_node, _) = cache.udict_get?(8, idx);
-  int number_of_slices = serialized_node~load_uint(8);
+  int number_of_ref = serialized_node~load_uint(3);
   builder node = begin_cell();
-  while (number_of_slices > 0) {
+  while (number_of_ref > 0) {
     node = node.store_ref(assemble_tree(cache, serialized_node~load_uint(8)));
+    number_of_ref -= 1;
   }
   node = node.store_slice(serialized_node~load_bits(serialized_node.slice_bits()));
   return node.end_cell();
 }
 
 cell assemble_msg () inline {
-  ;; initialize global variables
-  cell assembled_message = null();
-
   (_, cell cache) = load_cache();
   return assemble_tree(cache, 0);
 }
@@ -65,7 +61,7 @@ cell assemble_msg () inline {
   set_data(
     begin_cell()
       .store_uint(next_idx, 8)
-      .store_ref(cache_dict)
+      .store_dict(cache_dict)
     .end_cell()
   );
 }
@@ -80,8 +76,7 @@ cell assemble_msg () inline {
   }
 
   if (op == op::send_msg) {
-    cell root = assemble_msg();
-    send_msg(body~load_msg_addr(), root);
+    send_msg(body~load_msg_addr(), assemble_msg());
     empty_cache();
     return ();
   }
@@ -138,14 +133,13 @@ global cell ordered_cells;
 }
 
 slice get_ref_descriptor(slice cell_slice) inline {
-  int number_of_slices = cell_slice.slice_refs();
+  int number_of_refs = cell_slice.slice_refs();
   builder descriptor = begin_cell()
-          .store_uint(number_of_slices, 8);
-  int index = 0;
-  while(index < number_of_slices) {
+          .store_uint(number_of_refs, 3);
+  while(number_of_refs > 0) {
     (slice cell_index, _) = cell_hash_to_index.udict_get?(256, cell_hash(cell_slice~load_ref()));
     descriptor = descriptor.store_uint(cell_index~load_uint(8), 8);
-    number_of_slices -= 1;
+    number_of_refs -= 1;
   }
   return descriptor.end_cell().begin_parse();
 }
