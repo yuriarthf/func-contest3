@@ -41,9 +41,8 @@ cell assemble_tree (cell cache, int idx) inline {
   (slice serialized_node, _) = cache.udict_get?(8, idx);
   int number_of_ref = serialized_node~load_uint(3);
   builder node = begin_cell();
-  while (number_of_ref > 0) {
+  repeat (number_of_ref) {
     node = node.store_ref(assemble_tree(cache, serialized_node~load_uint(8)));
-    number_of_ref -= 1;
   }
   node = node.store_slice(serialized_node~load_bits(serialized_node.slice_bits()));
   return node.end_cell();
@@ -136,10 +135,9 @@ slice get_ref_descriptor(slice cell_slice) inline {
   int number_of_refs = cell_slice.slice_refs();
   builder descriptor = begin_cell()
           .store_uint(number_of_refs, 3);
-  while(number_of_refs > 0) {
+  repeat (number_of_refs) {
     (slice cell_index, _) = cell_hash_to_index.udict_get?(256, cell_hash(cell_slice~load_ref()));
     descriptor = descriptor.store_uint(cell_index~load_uint(8), 8);
-    number_of_refs -= 1;
   }
   return descriptor.end_cell().begin_parse();
 }
