@@ -1,0 +1,121 @@
+{-
+  Contract handles internal messages with queries with the following scheme
+  `_# score:uint32 value:(VarUInteger 16) msg:^Cell = MsgInternalBody`, where msg contains message body which shoud be sent later and store it to contract.
+  Once the number of stored queries reaches 12, contract should send and delete from storage message with the highest score and message with the lowest value (if it is the same message, it should be sent once). Messages should be sent to any address with mode 0, coin amount should be equal to value and it should contain corresponding message body. All scores and values are guaranteed to be different
+  Note, that in addition to gas-fees, storage fees will be used to determine final score. In particular, storage fee will be calculated like between each message passes 3 days (259200 seconds). Gas-units price and storage fee params will correspond to current configs of masterchain: 1000 nanoTON per 65536 bits per second + 500000 nanoTON per 65536 cells per second; gas is 10000 nanoTON per unit.
+
+
+  Example:
+  (message with score x and value y are represented as `(x,y)` )
+
+  incoming message   outcoming messages     
+  (1, 5)           | -
+  (2, 6)           | -
+  (3, 100)         | -
+  (4, 2)           | -
+  (5, 3)           | -
+  (6, 4)           | -
+  (7, 7)           | -
+  (8, 8)           | -
+  (9, 9)           | -
+  (10, 10)         | -
+  (11, 11)         | -
+  (12, 20)         | (12,20); (4,2)
+  (15, 1)          | -
+  (13, 13)         | (15, 1)
+  (14, 14)         | (14,14); (5,3)
+-}
+
+#include "imports/stdlib.fc";
+
+const CACHE_COUNT_BIT_SIZE = 4;
+const SCORE_BIT_SIZE = 32;
+const VALUE_BIT_SIZE = 128;
+
+global int cache_count;
+global cell score_to_msg_map;
+global cell value_to_msg_map;
+
+(cell, cell) load_data () impure inline {
+  var ds = get_data().begin_parse();
+
+  ;; store in global vars
+  cache_count = ds~load_uint(CACHE_COUNT_BIT_SIZE);
+  score_to_msg_map = ds~load_dict();
+  value_to_msg_map = ds~load_dict();
+}
+
+() update_cache () impure inline {
+  save_data(begin_cell()
+    .store_uint(cache_count, 4)
+    .store_dict(score_to_msg_map)
+    .store_dict(value_to_msg_map)
+  .end_cell());
+}
+
+() append_msg_to_data (int score, int value, cell msg) impure inline {
+  cache_count += 1;
+  score_to_msg_map~udict_set_builder(SCORE_BIT_SIZE, score, begin_cell().store_uint(value, VALUE_BIT_SIZE).store_ref(msg));
+  value_to_msg_map~udict_set(VALUE_BIT_SIZE, value, begin_cell().store_coins(score).store_ref(msg));
+}
+
+() send_msg (int value, cell body) impure inline {
+  cell full_msg = begin_cell()
+      .store_uint(0x10, 6)
+      .store_slice(my_address())
+      .store_coins(value)
+      .store_uint(1, 1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+      .store_ref(body)
+    .end_cell();
+  send_raw_message(full_msg, 0);
+}
+
+;; testable
+() recv_internal (slice in_msg_body) {
+  (int score, int value, cell msg) = (in_msg_body~load_uint(SCORE_BIT_SIZE), in_msg_body~load_coins(), in_msg_body~load_ref());
+  ;; Add code here
+
+  ;; load data and store in global vars
+  load_data();
+
+  ;; update global vars with the new msg
+  append_msg_to_data(score, value, msg);
+
+  if (cache_count < 12) {
+    ;; if amount of cached messages is less than 12
+    ;; finish operation
+    update_cache();
+    return ();
+  }
+
+  ;; else, send messages
+  ;; find highest score message
+  cache_count -= 1;
+  var (max_score, value_and_msg, _) = score_to_msg_map~udict_delete_get_max(SCORE_BIT_SIZE);
+
+  ;; send msg with highest score
+  int max_score_value = value_and_msg~load_uint(VALUE_BIT_SIZE);
+  send_msg(max_score_value, value_and_msg~load_ref());
+
+  ;; find lowest value message
+  var (min_value, score_and_msg, _) = value_to_msg_map~udict_delete_get_min(VALUE_BIT_SIZE);
+
+  ;; finish operation if `min_value` is equal to `max_score_value`
+  if (min_value == max_score_value) {
+    update_cache();
+    return ();
+  }
+  
+  ;; else, decrease `cache_count` (min_value and max_score msgs are not the same) and continue op
+  cache_count -= 1;
+
+  ;; delete msg related to `max_score_value` in `value_to_msg_map`
+  value_to_msg_map~udict_delete?(VALUE_BIT_SIZE, max_score_value);
+
+  ;; send msg with lowest value
+  int min_value_score = score_and_msg~load_coins();
+  send_msg(min_value, score_and_msg~load_ref());
+
+  ;; delete msg related to `min_value_score` in `score_to_msg_map`
+  score_to_msg_map~udict_delete?(SCORE_BIT_SIZE, min_value_score);
+}
