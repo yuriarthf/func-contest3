@@ -118,4 +118,7 @@ global cell value_to_msg_map;
 
   ;; delete msg related to `min_value_score` in `score_to_msg_map`
   score_to_msg_map~udict_delete?(SCORE_BIT_SIZE, min_value_score);
+
+  ;; update cache
+  update_cache();
 }
