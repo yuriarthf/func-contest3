@@ -11,8 +11,8 @@
 
 #include "imports/stdlib.fc";
 
-const op::cache_fragment = 1;
-const op::send_msg = 2;
+const op::cache_fragment = "op::cache_fragment"c;;
+const op::send_msg = "op::send_msg"c;
 
 () empty_cache () impure inline {
   set_data(begin_cell()
