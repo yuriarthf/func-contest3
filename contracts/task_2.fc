@@ -64,7 +64,7 @@ global cell value_to_msg_map;
       .store_uint(0x10, 6)
       .store_slice(my_address())
       .store_coins(value)
-      .store_uint(1, 1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+      .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
       .store_ref(body)
     .end_cell();
   send_raw_message(full_msg, 0);
