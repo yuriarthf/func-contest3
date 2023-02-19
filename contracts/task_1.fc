@@ -105,21 +105,17 @@ global cell ordered_cells;
   if (f) {
     int prev_index = index.preload_uint(8);
     move_elem_to_end(prev_index);
-    cell_hash_to_index~udict_set(256,
+    cell_hash_to_index~udict_set_builder(256,
       big_cell_hash,
       begin_cell()
         .store_uint(ordered_cells_length - 1, 8)
-        .end_cell()
-        .begin_parse()
     );
   } else {
-    cell_hash_to_index~udict_set(
+    cell_hash_to_index~udict_set_builder(
       256,
       big_cell_hash,
       begin_cell()
         .store_uint(ordered_cells_length, 8)
-        .end_cell()
-        .begin_parse()
     );
     ordered_cells~udict_set(8, ordered_cells_length, big_cell.begin_parse());
     ordered_cells_length += 1;
