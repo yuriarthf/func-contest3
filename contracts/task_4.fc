@@ -1,0 +1,121 @@
+{-
+  Implement Curve25519 addition and multiplication.
+-}
+
+{-
+  Montgomery curve: y**2 = x**3 + A * x**2 + x mod P;
+  A = 486662; P = 2**255 - 19
+-}
+
+#include "imports/stdlib.fc";
+
+const int P = 57896044618658097711785492504343953926634992332820282019728792003956564819949;
+const int A = 486662;
+const int MINUS_A = 57896044618658097711785492504343953926634992332820282019728792003956564333287;
+
+() recv_internal () {
+}
+
+int addmodP(int x1, int x2) inline asm(P x1 x2) "ADD SWAP MOD";
+int mulmodP(int x, int f) inline asm(P x f) "MUL SWAP MOD";
+
+int invmodP (int x) inline {
+  int result = x;
+  int bit_idx = 253;
+  while (bit_idx >= 0) {
+    result = mulmodP(result, result);
+    if ((bit_idx != 2) & (bit_idx != 4)) {
+      result = mulmodP(result, x);
+    }
+    bit_idx -= 1;
+  }
+  return result;
+}
+
+int is_points_equal(int x1, int y1, int x2, int y2) inline {
+  return (x1 == x2) & (y1 == y2);
+}
+
+(int, int) doublemodP(int x, int y) inline {
+  int l = mulmodP(
+    addmodP(
+      addmodP(
+        mulmodP(3, mulmodP(x, y)),
+        mulmodP(mulmodP(2, A), x)
+      ),
+      1
+    ),
+    invmodP(mulmodP(2, y))
+  );
+
+  int l2 = mulmodP(l, l);
+
+  int x3 = addmodP(
+    addmodP(
+      addmodP(l2, P - A),
+      P - x
+    ),
+    P - x
+  );
+
+  int y3 = addmodP(
+    addmodP(
+      mulmodP(
+        addmodP(addmodP(mulmodP(2, x), x), A),
+        l
+      ),
+      P - mulmodP(l2, l)
+    ),
+    P - y
+  );
+
+  return (x3, y3);
+}
+
+;; testable
+(int, int) add(int x1, int y1, int x2, int y2) method_id {
+  ;; Add code here
+  ;; return x,y coordinate of Point1 + Point2
+
+  if (is_points_equal(x1, y1, x2, y2)) {
+    return doublemodP(x1, y1);
+  }
+  int lambda = mulmodP(
+    addmodP(y2, P - y1),
+    invmodP(addmodP(x1, P - x2))
+  );
+
+  int lambda2 = mulmodP(lambda, lambda);
+  int x3 = addmodP(
+    addmodP(
+      addmodP(
+        lambda2,
+        MINUS_A
+      ),
+      P - x1
+    ),
+    P - x2
+  );
+
+  int y3 = addmodP(
+    addmodP(
+      mulmodP(
+        mulmodP(
+          addmodP(addmodP(addmodP(mulmodP(2, x1), x2)), A),
+          addmodP(y2, P - y1)
+        ),
+        invmodP(addmodP(x2, P - x1))
+      ),
+      P - mulmodP(lambda2, lambda)
+    ),
+    P - y1
+  );
+
+  return (x3, y3);
+}
+
+;; testable
+int mul(int x1, int factor) method_id {
+  ;; Add code here
+  ;; return x coordinate of Point1 * factor
+}
