@@ -27,25 +27,35 @@ int atoi (slice int_str) inline {
   return num;
 }
 
-int get_result (slice eq_str) inline {
-  int result = 0;
-  while (eq_str.slice_bits() > 0) {
-    int num = atoi(eq_str~load_uint(8));
+(int, int) resolve_mul_div (int num, slice eq_str) inline {
+  do {
+    if (eq_str.slice_empty?()) {
+      return (num, null());
+    }
     int op = eq_str~load_uint(8);
     if (op == 42) {
       num *= atoi(eq_str~load_uint(8));
     }
-    if (op == 43) {
-      num += atoi(eq_str~load_uint(8));
-    }
-    if (op == 45) {
-      num -= atoi(eq_str~load_uint(8));
-    }
     if (op == 47) {
       num /= atoi(eq_str~load_uint(8));
     }
-    result += num;
+  } until ((op != 42) & (op != 47));
+  return (num, op);
+}
+
+int get_result (slice eq_str) inline {
+  var (result, op) = resolve_mul_div(eq_str~load_uint(8), eq_str);
+  while (eq_str.slice_bits() > 0) {
+    if (op == 43) {
+      (int num, op) = resolve_mul_div(eq_str~load_uint(8), eq_str);
+      result += num;
+    }
+    if (op == 45) {
+      (int num, op) = resolve_mul_div(eq_str~load_uint(8), eq_str);
+      result -= num;
+    }
   }
+  return result;
 }
 
 () send_msg (slice destination_address, int answer) impure inline {
